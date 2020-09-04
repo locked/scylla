@@ -29,6 +29,7 @@
 #include "redis/options.hh"
 #include "mutation.hh"
 #include "service_permit.hh"
+#include "atomic_cell.hh"
 
 using namespace seastar;
 
@@ -104,6 +105,24 @@ future<> delete_objects(service::storage_proxy& proxy, redis::redis_options& opt
             return proxy.mutate(std::vector<mutation> {std::move(m)}, write_consistency_level, timeout, nullptr, permit);
         });
     };  
+    return parallel_for_each(tables.begin(), tables.end(), remove);
+}
+
+future<> delete_fields(service::storage_proxy& proxy, redis::redis_options& options, bytes&& key, std::vector<bytes>&& fields, service_permit permit) {
+    db::timeout_clock::time_point timeout = db::timeout_clock::now() + options.get_write_timeout();
+    auto write_consistency_level = options.get_write_consistency_level();
+    std::vector<sstring> tables { redis::HASHes };
+    auto remove = [&proxy, timeout, write_consistency_level, permit, &options, key = std::move(key), fields = std::move(fields)] (const sstring& cf_name) {
+        return parallel_for_each(fields.begin(), fields.end(), [&proxy, timeout, write_consistency_level, &options, permit, cf_name, key] (const bytes& field) {
+            auto schema = get_schema(proxy, options.get_keyspace_name(), cf_name);
+            auto pkey = partition_key::from_single_value(*schema, key);
+            auto ckey = clustering_key::from_single_value(*schema, field);
+            auto m = mutation(schema, std::move(pkey));
+            m.partition().apply_delete(*schema, ckey, tombstone { api::new_timestamp(), gc_clock::now() });
+
+            return proxy.mutate(std::vector<mutation> {std::move(m)}, write_consistency_level, timeout, nullptr, permit);
+        });
+    };
     return parallel_for_each(tables.begin(), tables.end(), remove);
 }
 

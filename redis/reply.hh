@@ -27,6 +27,7 @@
 #include <seastar/core/print.hh>
 #include "seastar/core/scattered_message.hh"
 #include "redis/exceptions.hh"
+// #include "redis/query_utils.hh"
 
 using namespace seastar;
 
@@ -71,6 +72,14 @@ public:
     static future<redis_message> number(size_t n) {
         auto m = make_lw_shared<scattered_message<char>> ();
         m->append(sprint(":%zu\r\n", n));
+        return make_ready_future<redis_message>(m);
+    }
+    static future<redis_message> make_list_result(std::vector<bytes> list_result) {
+        auto m = make_lw_shared<scattered_message<char>> ();
+        m->append(sprint("*%u\r\n", list_result.size()));
+        for (auto& r : list_result) {
+            write_bytes(m, r);
+        }
         return make_ready_future<redis_message>(m);
     }
     static future<redis_message> make_strings_result(bytes result) {

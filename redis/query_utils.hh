@@ -40,6 +40,16 @@ namespace redis {
 
 class redis_options;
 
+struct hashes_result {
+    std::vector<bytes> _results;
+    bool _has_result;
+    ttl_opt _ttl;
+    std::vector<bytes>& results() { return _results; }
+    bool has_result() const { return _has_result; }
+    gc_clock::duration ttl() { return _ttl.value(); }
+    bool has_ttl() { return _ttl.has_value(); }
+};
+
 struct strings_result {
     bytes _result;
     bool _has_result;
@@ -51,7 +61,10 @@ struct strings_result {
 };
 
 future<lw_shared_ptr<strings_result>> read_strings(service::storage_proxy&, const redis_options&, const bytes&, service_permit);
-future<lw_shared_ptr<strings_result>> read_strings_from_hash(service::storage_proxy&, const redis_options&, const bytes&, const bytes&, service_permit);
 future<lw_shared_ptr<strings_result>> query_strings(service::storage_proxy&, const redis_options&, const bytes&, service_permit, schema_ptr, query::partition_slice);
+
+future<lw_shared_ptr<hashes_result>> read_strings_from_hash(service::storage_proxy&, const redis_options&, const bytes&, const bytes&, service_permit);
+future<lw_shared_ptr<hashes_result>> read_list_from_hash(service::storage_proxy&, const redis_options&, const bytes&, service_permit);
+future<lw_shared_ptr<hashes_result>> query_list(service::storage_proxy&, const redis_options&, const bytes&, service_permit, schema_ptr, query::partition_slice);
 
 }
